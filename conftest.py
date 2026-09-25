@@ -151,6 +151,18 @@ def pytest_runtest_setup(item):
 
 # Test environment setup
 @pytest.fixture(autouse=True)
+def enable_capabilities_for_tests():
+    """Enable guarded capabilities so tests exercise the real tool paths."""
+    with patch.multiple(
+        'MetasploitMCP',
+        ALLOW_ACTIVE_ACTIONS=True,
+        ALLOW_SESSION_CONTROL=True,
+        ALLOW_PAYLOAD_GENERATION=True,
+        ALLOW_LISTENER_CONTROL=True,
+    ):
+        yield
+
+@pytest.fixture(autouse=True)
 def reset_msf_client():
     """Automatically reset the global MSF client between tests."""
     with patch('MetasploitMCP._msf_client_instance', None):
