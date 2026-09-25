@@ -414,7 +414,7 @@ async def _execute_module_rpc(
     # Prepare payload if needed (primarily for exploits, also used by start_listener)
     if module_type == 'exploit' and payload_spec:
         if isinstance(payload_spec, str):
-             payload_name_for_log = payload_spec
+             payload_name_for_log = _validate_module_name(payload_spec)
              # Passing name string directly is supported by exploit.execute
              payload_obj_to_pass = payload_name_for_log
              logger.info(f"Executing {full_module_path} with payload '{payload_name_for_log}' (passed as string).")
@@ -1049,7 +1049,7 @@ async def run_post_module(
     logger.info(f"Request to run post module {module_name} on session {session_id}. Job: {run_as_job}")
     _require_capability("active_actions")
     timeout_seconds = _validate_timeout(timeout_seconds)
-    module_options = options or {}
+    module_options = dict(options or {})
     module_options['SESSION'] = session_id # Ensure SESSION is always set
 
     # Add basic session validation before running
@@ -1459,7 +1459,7 @@ async def start_listener(
     # exploit/multi/handler options
     module_options = {'ExitOnSession': exit_on_session}
     # Payload options (passed within the payload_spec)
-    payload_options = parsed_additional_options
+    payload_options = dict(parsed_additional_options)
     payload_options['LHOST'] = lhost
     payload_options['LPORT'] = lport
 
