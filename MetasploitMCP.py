@@ -25,7 +25,9 @@ from starlette.routing import Mount, Route, Router
 # --- Configuration & Constants ---
 
 # Metasploit Connection Config (from environment variables)
-MSF_PASSWORD = os.getenv('MSF_PASSWORD', 'yourpassword')
+MSF_PASSWORD = os.getenv('MSF_PASSWORD')
+if not MSF_PASSWORD:
+    raise RuntimeError('MSF_PASSWORD environment variable must be set; refusing to use a default password.')
 MSF_SERVER = os.getenv('MSF_SERVER', '127.0.0.1')
 MSF_PORT_STR = os.getenv('MSF_PORT', '55553')
 MSF_SSL_STR = os.getenv('MSF_SSL', 'false')
@@ -37,7 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("metasploit_mcp_server")
 logger.setLevel(LOG_LEVEL.upper())
-logger.debug(f"MSF_PASSWORD    : {MSF_PASSWORD}")
+logger.debug("MSF_PASSWORD    : [REDACTED]")
 logger.debug(f"MSF_SERVER      : {MSF_SERVER}")
 logger.debug(f"MSF_PORT_STR    : {MSF_PORT_STR}")
 logger.debug(f"MSF_SSL_STR     : {MSF_SSL_STR}")
