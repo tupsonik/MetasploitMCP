@@ -1,0 +1,54 @@
+name: Metasploit check-only web security assessment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fingerprint-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Nmap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nmap
+
+      - name: Fingerprint HTTPS service
+        shell: bash
+        run: |
+          mkdir -p assessment
+          nmap -Pn -sV -p 80,443,8080,8443 --version-light -T2 webgl.greenhost.pw             -oN assessment/nmap-services.txt
+
+      - name: Safe HTTP checks
+        shell: bash
+        run: |
+          set -u
+          {
+            echo "== headers =="
+            curl -k -I --max-time 15 -sS https://webgl.greenhost.pw/ || true
+            echo
+            echo "== HTTP methods =="
+            curl -k -i -X OPTIONS --max-time 15 -sS https://webgl.greenhost.pw/ || true
+            echo
+            echo "== robots =="
+            curl -k -L --max-time 15 -sS https://webgl.greenhost.pw/robots.txt || true
+          } > assessment/http-checks.txt
+
+      - name: Run Metasploit check for Apache 2.4.49/2.4.50 only
+        shell: bash
+        run: |
+          set -u
+          if grep -Eq 'Apache httpd 2\.4\.(49|50)' assessment/nmap-services.txt; then
+            echo "Apache 2.4.49/2.4.50 fingerprint detected; running Metasploit CHECK only."
+            docker run --rm metasploitframework/metasploit-framework:6.5.5               ./msfconsole -q -x               "use exploit/multi/http/apache_normalize_path_rce; set RHOSTS webgl.greenhost.pw; set RPORT 443; set SSL true; set TARGETURI /; check; exit -y"               2>&1 | tee assessment/metasploit-check.txt
+          else
+            echo "No Apache 2.4.49/2.4.50 fingerprint was exposed by the remote service."               | tee assessment/metasploit-check.txt
+          fi
+
+      - name: Publish assessment
+        uses: actions/upload-artifact@v4
+        with:
+          name: metasploit-web-assessment
+          path: assessment/
