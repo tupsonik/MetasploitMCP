@@ -31,8 +31,6 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
         if "network" in item.name.lower():
             item.add_marker(pytest.mark.network)
-        if any(keyword in item.name.lower() for keyword in ("slow", "timeout", "long")):
-            item.add_marker(pytest.mark.slow)
 
 
 @pytest.fixture(scope="session")
