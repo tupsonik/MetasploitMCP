@@ -1705,7 +1705,6 @@ if __name__ == "__main__":
         LOG_LEVEL = 'debug'
         logger.setLevel(LOG_LEVEL.upper())
 
-    global HTTP_AUTH_REQUIRED
     HTTP_AUTH_REQUIRED = False
     if args.transport == "http":
         remote_bind = not _is_loopback_host(args.host)
