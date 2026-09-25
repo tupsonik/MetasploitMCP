@@ -1,0 +1,16 @@
+name: Target availability check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check HTTP
+        run: |
+          set -e
+          curl -k -I --max-time 15 -sS https://webgl.greenhost.pw
