@@ -65,6 +65,10 @@ This MCP server provides a bridge between large language models like Claude and 
    export MCP_ALLOW_SESSION_CONTROL=false
    export MCP_ALLOW_PAYLOAD_GENERATION=false
    export MCP_ALLOW_LISTENER_CONTROL=false
+   
+   # For remote HTTP/SSE (non-loopback) deployments:
+   export MCP_AUTH_TOKEN='use-a-long-random-token'
+   export MCP_REQUIRE_AUTH=auto
    ```
    See `.env.example` for the complete configuration.
 
@@ -141,6 +145,7 @@ For other MCP clients that use HTTP/SSE:
 
 2. Configure your MCP client to connect to:
    - SSE endpoint: `http://your-server-ip:8085/sse`
+   - Send `Authorization: Bearer <MCP_AUTH_TOKEN>` when HTTP authentication is enabled.
 
 ## Security Considerations
 
