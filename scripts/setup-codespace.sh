@@ -50,17 +50,18 @@ fi
 
 echo "[4/5] Starting Metasploit RPC..."
 if docker ps -a --format '{{.Names}}' | grep -qx 'metasploit-rpc-codespace'; then
-  if ! docker ps --format '{{.Names}}' | grep -qx 'metasploit-rpc-codespace'; then
-    docker start metasploit-rpc-codespace >/dev/null
-  fi
-else
+  echo "Removing previous Metasploit RPC container..."
+  docker rm -f metasploit-rpc-codespace >/dev/null 2>&1 || true
+fi
+if ! docker ps -a --format '{{.Names}}' | grep -qx 'metasploit-rpc-codespace'; then
   docker run -d \
     --name metasploit-rpc-codespace \
     --restart unless-stopped \
     -e HOME=/home/msf \
     -p 127.0.0.1:55553:55553 \
+    --entrypoint /bin/sh \
     metasploitframework/metasploit-framework:6.5.5 \
-    /usr/src/metasploit-framework/msfrpcd -U msf -P "$MSF_PASSWORD" -S -a 0.0.0.0 -p 55553 -f >/dev/null
+    -lc 'cd /usr/src/metasploit-framework && exec ./msfrpcd -U msf -P "$MSF_PASSWORD" -S -a 0.0.0.0 -p 55553 -f' >/dev/null
 fi
 
 echo "Waiting for Metasploit RPC..."
