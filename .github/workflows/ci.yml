@@ -20,7 +20,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-test.txt
+      - name: Import smoke test
+        env:
+          MSF_PASSWORD: test-password
+        run: python -c "import MetasploitMCP; assert hasattr(MetasploitMCP, 'mcp')"
+
       - name: Run tests
         env:
           MSF_PASSWORD: test-password
         run: python -m pytest tests/ --cov=MetasploitMCP --cov-report=term-missing
+
+      - name: Docker build smoke test
+        run: docker build --tag metasploit-mcp-ci .

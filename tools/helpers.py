@@ -26,12 +26,12 @@ def parse_options_gracefully(
             pairs = [pair.strip() for pair in options.split(",") if pair.strip()]
             for pair in pairs:
                 if "=" not in pair:
-                    raise ValueError(f"Invalid option format: '{pair}' (missing '=')")
+                    raise ValueError(f"Invalid option syntax at pair {len(parsed_options) + 1}: expected key=value")
                 key, value = pair.split("=", 1)
                 key = key.strip()
                 value = value.strip()
                 if not key:
-                    raise ValueError(f"Invalid option format: '{pair}' (empty key)")
+                    raise ValueError(f"Invalid option syntax at pair {len(parsed_options) + 1}: key is empty")
                 if (value.startswith('"') and value.endswith('"')) or (
                     value.startswith("'") and value.endswith("'")
                 ):
@@ -50,7 +50,7 @@ def parse_options_gracefully(
             return parsed_options
         except Exception as exc:
             raise ValueError(
-                f"Failed to parse options string '{options}': {exc}. "
+                f"Failed to parse options string: {exc}. "
                 "Expected format: 'key=value,key2=value2' or dict {'key': 'value'}"
             ) from exc
     try:
@@ -58,7 +58,7 @@ def parse_options_gracefully(
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Options must be a dictionary or comma-separated string format "
-            f"'key=value,key2=value2'. Got {type(options)}: {options}"
+            "'key=value,key2=value2'."
         ) from exc
 
 
@@ -122,5 +122,9 @@ async def set_module_options(
                     module_obj.__setitem__(option_key, option_value)
             )
         except (MsfRpcError, KeyError, TypeError) as exc:
-            logger.error(f"Failed to set option {key} on module: {exc}")
-            raise ValueError(f"Failed to set option '{key}': {exc}") from exc
+            logger.error(
+                f"Failed to set option {key} on module: {type(exc).__name__}"
+            )
+            raise ValueError(
+                f"Failed to set option '{key}': {type(exc).__name__}"
+            ) from exc

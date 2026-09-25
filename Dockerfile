@@ -13,6 +13,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY MetasploitMCP.py .
+COPY config.py .
+COPY security.py .
+COPY msf_client.py .
+COPY tools ./tools
 COPY .env.example .
 
 RUN useradd --create-home --uid 10001 mcp \

@@ -4,55 +4,11 @@ Unit tests for helper functions in MetasploitMCP.
 """
 
 import pytest
-import sys
-import os
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from typing import Dict, Any
+from unittest.mock import Mock, patch
 
-# Add the parent directory to the path to import MetasploitMCP
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-# Mock the dependencies that aren't available in test environment
-sys.modules['uvicorn'] = Mock()
-sys.modules['fastapi'] = Mock()
-sys.modules['mcp.server.fastmcp'] = Mock()
-sys.modules['mcp.server.sse'] = Mock()
-sys.modules['pymetasploit3.msfrpc'] = Mock()
-sys.modules['starlette.applications'] = Mock()
-sys.modules['starlette.routing'] = Mock()
-sys.modules['mcp.server.session'] = Mock()
-
-# Create mock classes for MSF objects
-class MockMsfRpcClient:
-    def __init__(self):
-        self.modules = Mock()
-        self.core = Mock()
-        self.sessions = Mock()
-        self.jobs = Mock()
-        self.consoles = Mock()
-
-class MockMsfConsole:
-    def __init__(self, cid='test-console-id'):
-        self.cid = cid
-        
-    def read(self):
-        return {'data': 'test output', 'prompt': 'msf6 > ', 'busy': False}
-        
-    def write(self, command):
-        return True
-
-class MockMsfRpcError(Exception):
-    pass
-
-# Patch the MSF modules
-sys.modules['pymetasploit3.msfrpc'].MsfRpcClient = MockMsfRpcClient
-sys.modules['pymetasploit3.msfrpc'].MsfConsole = MockMsfConsole  
-sys.modules['pymetasploit3.msfrpc'].MsfRpcError = MockMsfRpcError
-
-# Import after mocking
+from tests.fakes import MockMsfConsole, MockMsfRpcClient, MockMsfRpcError
 from MetasploitMCP import (
-    _get_module_object, _set_module_options, initialize_msf_client, 
+    _get_module_object, _set_module_options, initialize_msf_client,
     get_msf_client, get_msf_console, run_command_safely,
     find_available_port
 )
@@ -292,15 +248,14 @@ class TestRunCommandSafely:
 
     @pytest.mark.asyncio
     async def test_run_command_safely_read_error(self, mock_console):
-        """Test command execution with read error - should timeout gracefully."""
+        """Read errors should back off without waiting for the full inactivity timeout."""
         mock_console.read.side_effect = Exception("Read failed")
 
-        # Should not raise exception, but timeout and return empty result
-        result = await run_command_safely(mock_console, 'help')
-        
-        # Should return empty string after timeout
-        assert isinstance(result, str)
-        assert result == ""  # Empty result after timeout
+        with patch("MetasploitMCP.SESSION_READ_INACTIVITY_TIMEOUT", 0):
+            result = await run_command_safely(mock_console, "help")
+
+        assert result == ""
+
 
 
 class TestFindAvailablePort:

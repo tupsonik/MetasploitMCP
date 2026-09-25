@@ -47,6 +47,9 @@ This MCP server provides a bridge between large language models like Claude and 
 
 ## Installation
 
+> Compatibility note: this release uses the MCP Python SDK v1 `FastMCP`/SSE API, so `mcp` is intentionally pinned below 2.0. The MCP SDK v2 requires an API migration before upgrading.
+
+
 1. Clone this repository
 2. Install dependencies:
    ```

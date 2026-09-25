@@ -5,108 +5,13 @@ These tests mock the Metasploit backend but test the full tool workflows.
 """
 
 import pytest
-import sys
-import os
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from typing import Dict, Any
+from unittest.mock import Mock, patch, AsyncMock
 
-# Add the parent directory to the path to import MetasploitMCP
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-# Mock the dependencies that aren't available in test environment
-sys.modules['uvicorn'] = Mock()
-sys.modules['fastapi'] = Mock()
-sys.modules['starlette.applications'] = Mock()
-sys.modules['starlette.routing'] = Mock()
-
-# Create a special mock for FastMCP that preserves the tool decorator behavior
-class MockFastMCP:
-    def __init__(self, *args, **kwargs):
-        pass
-    
-    def tool(self):
-        # Return a decorator that just returns the original function
-        def decorator(func):
-            return func
-        return decorator
-
-# Mock the MCP modules with our custom FastMCP
-mcp_server_fastmcp = Mock()
-mcp_server_fastmcp.FastMCP = MockFastMCP
-sys.modules['mcp.server.fastmcp'] = mcp_server_fastmcp
-sys.modules['mcp.server.sse'] = Mock()
-sys.modules['mcp.server.session'] = Mock()
-
-# Mock pymetasploit3 module
-sys.modules['pymetasploit3.msfrpc'] = Mock()
-
-# Create comprehensive mock classes
-class MockMsfRpcClient:
-    def __init__(self):
-        self.modules = Mock()
-        self.core = Mock()
-        self.sessions = Mock()
-        self.jobs = Mock()
-        self.consoles = Mock()
-        
-        # Setup default behaviors
-        self.core.version = {'version': '6.3.0'}
-        # These are properties that return lists
-        self.modules.exploits = ['windows/smb/ms17_010_eternalblue', 'unix/ftp/vsftpd_234_backdoor']
-        self.modules.payloads = ['windows/meterpreter/reverse_tcp', 'linux/x86/shell/reverse_tcp']
-        # These are methods that return dicts
-        self.sessions.list = Mock(return_value={})
-        self.jobs.list = Mock(return_value={})
-
-class MockMsfConsole:
-    def __init__(self, cid='test-console-id'):
-        self.cid = cid
-        self._command_history = []
-        
-    def read(self):
-        return {'data': 'msf6 > ', 'prompt': '\x01\x02msf6\x01\x02 \x01\x02> \x01\x02', 'busy': False}
-        
-    def write(self, command):
-        self._command_history.append(command.strip())
-        return True
-
-class MockMsfModule:
-    def __init__(self, fullname):
-        self.fullname = fullname
-        self.options = {}
-        # Create a proper mock for runoptions that supports __setitem__
-        self.runoptions = {}
-        self.missing_required = []
-        
-    def __setitem__(self, key, value):
-        self.options[key] = value
-        
-    def execute(self, payload=None):
-        return {
-            'job_id': 1234,
-            'uuid': 'test-uuid-123',
-            'error': False
-        }
-        
-    def payload_generate(self):
-        return b"test_payload_bytes"
-
-class MockMsfRpcError(Exception):
-    pass
-
-# Apply mocks
-sys.modules['pymetasploit3.msfrpc'].MsfRpcClient = MockMsfRpcClient
-sys.modules['pymetasploit3.msfrpc'].MsfConsole = MockMsfConsole  
-sys.modules['pymetasploit3.msfrpc'].MsfRpcError = MockMsfRpcError
-
-# Import the module and then get the actual functions
+from tests.fakes import MockMsfModule, MockMsfRpcClient, MockMsfRpcError
 import MetasploitMCP
-import importlib
-# Reload after installing deterministic dependency mocks so @mcp.tool() preserves async functions.
-MetasploitMCP = importlib.reload(MetasploitMCP)
 
-# Get the actual functions (not mocked)
+# Get direct async function references. The fake @mcp.tool() decorator preserves them.
 list_exploits = MetasploitMCP.list_exploits
 list_payloads = MetasploitMCP.list_payloads
 generate_payload = MetasploitMCP.generate_payload
@@ -115,10 +20,10 @@ run_post_module = MetasploitMCP.run_post_module
 run_auxiliary_module = MetasploitMCP.run_auxiliary_module
 list_active_sessions = MetasploitMCP.list_active_sessions
 send_session_command = MetasploitMCP.send_session_command
+list_listeners = MetasploitMCP.list_listeners
 start_listener = MetasploitMCP.start_listener
 stop_job = MetasploitMCP.stop_job
 terminate_session = MetasploitMCP.terminate_session
-
 
 class TestExploitListingTools:
     """Test tools for listing exploits and payloads."""
@@ -173,23 +78,14 @@ class TestExploitListingTools:
 
     @pytest.mark.asyncio
     async def test_list_exploits_timeout(self, mock_client):
-        """Test listing exploits with timeout."""
-        import asyncio
-        
-        def slow_exploits():
-            # Simulate a slow response that would timeout
-            import time
-            time.sleep(35)  # Longer than RPC_CALL_TIMEOUT (30s)
-            return ['exploit1', 'exploit2']
-        
-        mock_client.modules.exploits = slow_exploits
-        
-        result = await list_exploits()
-        
+        """Test listing exploits with an RPC timeout."""
+        with patch("MetasploitMCP.asyncio.to_thread", new_callable=AsyncMock, side_effect=asyncio.TimeoutError):
+            result = await list_exploits()
+
         assert isinstance(result, list)
         assert len(result) == 1
         assert "Timeout" in result[0]
-        assert "30" in result[0]  # Should mention the timeout duration
+        assert "30" in result[0]
 
     @pytest.mark.asyncio
     async def test_list_payloads_no_filter(self, mock_client):
@@ -418,10 +314,10 @@ class TestSessionManagement:
         """Fixture providing mocked session management environment."""
         client = MockMsfRpcClient()
         session = Mock()
-        session.run_with_output = AsyncMock(return_value="command output")
+        session.run_with_output = Mock(return_value="command output")
         session.read = Mock(return_value="session data")
         session.write = Mock()
-        session.stop = AsyncMock()
+        session.stop = Mock()
         
         # Override the default Mock with actual dict return values
         client.sessions.list = Mock(return_value={
@@ -568,6 +464,18 @@ class TestListenerManagement:
         
         assert result["status"] == "success"
         client.jobs.stop.assert_called_once_with("1234")
+
+
+class TestToolRegistration:
+    def test_tools_remain_async_functions(self):
+        import inspect
+        tools = (
+            list_exploits, list_payloads, generate_payload, run_exploit,
+            run_post_module, run_auxiliary_module, list_active_sessions,
+            send_session_command, list_listeners, start_listener, stop_job,
+            terminate_session,
+        )
+        assert all(inspect.iscoroutinefunction(tool) for tool in tools)
 
 
 if __name__ == "__main__":

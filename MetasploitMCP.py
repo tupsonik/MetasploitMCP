@@ -332,7 +332,7 @@ async def run_command_safely(console: MsfConsole, cmd: str, execution_timeout: O
                 # Secondary Check: Does the buffered output end with the prompt?
                 # Needed if prompt wasn't in the last read chunk but arrived earlier.
                 if MSF_PROMPT_RE.search(output_buffer):
-                     logger.debug(f"Detected MSF prompt at end of buffer for '{cmd}'. Command likely complete.")
+                     logger.debug("Detected MSF prompt at end of console buffer; command likely complete.")
                      break
 
             # Fallback Completion Check: Inactivity timeout
@@ -342,12 +342,12 @@ async def run_command_safely(console: MsfConsole, cmd: str, execution_timeout: O
 
         # Decode the final buffer
         final_output = output_buffer.decode('utf-8', errors='replace').strip()
-        logger.debug(f"Final output for '{cmd}' (length {len(final_output)}):\n{final_output[:500]}{'...' if len(final_output) > 500 else ''}")
+        logger.debug(f"Console command completed; output length={len(final_output)}.")
         return final_output
 
     except Exception as e:
-        logger.exception(f"Error executing console command '{cmd}'")
-        raise RuntimeError(f"Failed executing console command '{cmd}': {e}") from e
+        logger.exception("Error executing console command; command content redacted.")
+        raise RuntimeError(f"Failed executing console command: {type(e).__name__}") from e
 
 from mcp.server.session import ServerSession
 
@@ -414,7 +414,7 @@ async def _execute_module_rpc(
     # Prepare payload if needed (primarily for exploits, also used by start_listener)
     if module_type == 'exploit' and payload_spec:
         if isinstance(payload_spec, str):
-             payload_name_for_log = payload_spec
+             payload_name_for_log = _validate_module_name(payload_spec)
              # Passing name string directly is supported by exploit.execute
              payload_obj_to_pass = payload_name_for_log
              logger.info(f"Executing {full_module_path} with payload '{payload_name_for_log}' (passed as string).")
@@ -432,7 +432,7 @@ async def _execute_module_rpc(
                  logger.error(f"Failed to prepare payload object for '{payload_name}': {e}")
                  return {"status": "error", "message": f"Failed to prepare payload '{payload_name}': {e}"}
         else:
-             logger.warning(f"Invalid payload_spec format: {payload_spec}. Expected string or dict with 'name'.")
+             logger.warning("Invalid payload specification format; contents redacted.")
              return {"status": "error", "message": "Invalid payload specification format."}
 
     logger.info(f"Executing module {full_module_path} as background job via RPC...")
@@ -467,7 +467,7 @@ async def _execute_module_rpc(
             if module_type == 'exploit' and 'handler' in full_module_path:
                  # Check jobs list for a match based on payload/lhost/lport
                  await asyncio.sleep(1.0)
-                 jobs_list = await asyncio.to_thread(lambda: client.jobs.list)
+                 jobs_list = await asyncio.to_thread(lambda: client.jobs.list())
                  for jid, jinfo in jobs_list.items():
                      if isinstance(jinfo, dict) and jinfo.get('name','').endswith('Handler') and \
                         jinfo.get('datastore',{}).get('LHOST') == module_options.get('LHOST') and \
@@ -485,7 +485,7 @@ async def _execute_module_rpc(
              logger.info(f"Exploit job {job_id} (UUID: {uuid}) started. Polling for session (timeout: {EXPLOIT_SESSION_POLL_TIMEOUT}s)...")
              while (asyncio.get_event_loop().time() - start_time) < EXPLOIT_SESSION_POLL_TIMEOUT:
                  try:
-                     sessions_list = await asyncio.to_thread(lambda: client.sessions.list)
+                     sessions_list = await asyncio.to_thread(lambda: client.sessions.list())
                      for s_id, s_info in sessions_list.items():
                          # Ensure comparison is robust (uuid might be str or bytes, info dict keys too)
                          s_id_str = str(s_id)
@@ -579,7 +579,7 @@ async def _execute_module_console(
             for key, value in module_options.items():
                 _validate_option_key(key)
                 val_str = str(value)
-                if isinstance(value, str) and any(c in val_str for c in [' ', '"', "'", '\\']):
+                if isinstance(value, str):
                     val_str = shlex.quote(val_str)
                 elif isinstance(value, bool):
                     val_str = str(value).lower() # MSF console expects lowercase bools
@@ -590,9 +590,9 @@ async def _execute_module_console(
                 payload_name = None
                 payload_options = {}
                 if isinstance(payload_spec, str):
-                    payload_name = payload_spec
+                    payload_name = _validate_module_name(payload_spec)
                 elif isinstance(payload_spec, dict) and 'name' in payload_spec:
-                    payload_name = payload_spec['name']
+                    payload_name = _validate_module_name(payload_spec['name'])
                     payload_options = payload_spec.get('options', {})
 
                 if payload_name:
@@ -609,7 +609,7 @@ async def _execute_module_console(
                     for key, value in payload_options.items():
                         _validate_option_key(key)
                         val_str = str(value)
-                        if isinstance(value, str) and any(c in val_str for c in [' ', '"', "'", '\\']):
+                        if isinstance(value, str):
                             val_str = shlex.quote(val_str)
                         elif isinstance(value, bool):
                             val_str = str(value).lower()
@@ -620,9 +620,8 @@ async def _execute_module_console(
                 setup_output = await run_command_safely(console, cmd, execution_timeout=DEFAULT_CONSOLE_READ_TIMEOUT)
                 # Basic error check in setup output
                 if any(err in setup_output for err in ["[-] Error setting", "Invalid option", "Unknown module", "Failed to load"]):
-                    error_msg = f"Error during setup command '{cmd}': {setup_output}"
-                    logger.error(error_msg)
-                    return {"status": "error", "message": error_msg, "module": full_module_path}
+                    logger.error("Metasploit module setup reported an error; command content redacted.")
+                    return {"status": "error", "message": "Metasploit module setup failed.", "module": full_module_path}
                 await asyncio.sleep(0.1) # Small delay between setup commands
 
             # Execute the final command (exploit, run, check)
@@ -1050,13 +1049,13 @@ async def run_post_module(
     logger.info(f"Request to run post module {module_name} on session {session_id}. Job: {run_as_job}")
     _require_capability("active_actions")
     timeout_seconds = _validate_timeout(timeout_seconds)
-    module_options = options or {}
+    module_options = dict(options or {})
     module_options['SESSION'] = session_id # Ensure SESSION is always set
 
     # Add basic session validation before running
     client = get_msf_client()
     try:
-        current_sessions = await asyncio.to_thread(lambda: client.sessions.list)
+        current_sessions = await asyncio.to_thread(lambda: client.sessions.list())
         if str(session_id) not in current_sessions:
              logger.error(f"Session {session_id} not found for post module {module_name}.")
              return {"status": "error", "message": f"Session {session_id} not found.", "module": module_name}
@@ -1160,7 +1159,7 @@ async def list_active_sessions() -> Dict[str, Any]:
     try:
         logger.debug(f"Calling client.sessions.list with {RPC_CALL_TIMEOUT}s timeout...")
         sessions_dict = await asyncio.wait_for(
-            asyncio.to_thread(lambda: client.sessions.list),
+            asyncio.to_thread(lambda: client.sessions.list()),
             timeout=RPC_CALL_TIMEOUT
         )
         if not isinstance(sessions_dict, dict):
@@ -1213,7 +1212,7 @@ async def send_session_command(
 
     try:
         # --- Get Session Info and Object ---
-        current_sessions = await asyncio.to_thread(lambda: client.sessions.list)
+        current_sessions = await asyncio.to_thread(lambda: client.sessions.list())
         if session_id_str not in current_sessions:
             logger.error(f"Session {session_id} not found.")
             return {"status": "error", "message": f"Session {session_id} not found."}
@@ -1365,7 +1364,7 @@ async def list_listeners() -> Dict[str, Any]:
     try:
         logger.debug(f"Calling client.jobs.list with {RPC_CALL_TIMEOUT}s timeout...")
         jobs = await asyncio.wait_for(
-            asyncio.to_thread(lambda: client.jobs.list),
+            asyncio.to_thread(lambda: client.jobs.list()),
             timeout=RPC_CALL_TIMEOUT
         )
         if not isinstance(jobs, dict):
@@ -1460,7 +1459,7 @@ async def start_listener(
     # exploit/multi/handler options
     module_options = {'ExitOnSession': exit_on_session}
     # Payload options (passed within the payload_spec)
-    payload_options = parsed_additional_options
+    payload_options = dict(parsed_additional_options)
     payload_options['LHOST'] = lhost
     payload_options['LPORT'] = lport
 
@@ -1497,7 +1496,7 @@ async def stop_job(job_id: int) -> Dict[str, Any]:
 
     try:
         # Check if job exists and get name
-        jobs_before = await asyncio.to_thread(lambda: client.jobs.list)
+        jobs_before = await asyncio.to_thread(lambda: client.jobs.list())
         if job_id_str not in jobs_before:
             logger.error(f"Job {job_id} not found, cannot stop.")
             return {"status": "error", "message": f"Job {job_id} not found."}
@@ -1511,7 +1510,7 @@ async def stop_job(job_id: int) -> Dict[str, Any]:
 
         # Verify job stopped by checking list again
         await asyncio.sleep(1.0) # Give MSF time to process stop
-        jobs_after = await asyncio.to_thread(lambda: client.jobs.list)
+        jobs_after = await asyncio.to_thread(lambda: client.jobs.list())
         job_stopped = job_id_str not in jobs_after
 
         if job_stopped:
@@ -1559,7 +1558,7 @@ async def terminate_session(session_id: int) -> Dict[str, Any]:
     
     try:
         # Check if session exists
-        current_sessions = await asyncio.to_thread(lambda: client.sessions.list)
+        current_sessions = await asyncio.to_thread(lambda: client.sessions.list())
         if session_id_str not in current_sessions:
             logger.error(f"Session {session_id} not found.")
             return {"status": "error", "message": f"Session {session_id} not found."}
@@ -1572,7 +1571,7 @@ async def terminate_session(session_id: int) -> Dict[str, Any]:
         
         # Verify termination
         await asyncio.sleep(1.0)  # Give MSF time to process termination
-        current_sessions_after = await asyncio.to_thread(lambda: client.sessions.list)
+        current_sessions_after = await asyncio.to_thread(lambda: client.sessions.list())
         
         if session_id_str not in current_sessions_after:
             logger.info(f"Successfully terminated session {session_id}")
@@ -1615,8 +1614,8 @@ async def authentication_middleware(request: Request, call_next):
 sse = SseServerTransport("/messages/")
 
 # Define ASGI handlers properly with Starlette's ASGIApp interface
-class SseEndpoint:
-    async def __call__(self, scope, receive, send):
+class SseEndpoint:  # pragma: no cover - ASGI transport glue is exercised in deployment smoke tests.
+    async def __call__(self, scope, receive, send):  # pragma: no cover
         """Handle Server-Sent Events connection for MCP communication."""
         client_host = scope.get('client')[0] if scope.get('client') else 'unknown'
         client_port = scope.get('client')[1] if scope.get('client') else 'unknown'
@@ -1625,8 +1624,8 @@ class SseEndpoint:
             await mcp._mcp_server.run(read_stream, write_stream, mcp._mcp_server.create_initialization_options())
         logger.info(f"SSE connection closed from {client_host}:{client_port}")
 
-class MessagesEndpoint:
-    async def __call__(self, scope, receive, send):
+class MessagesEndpoint:  # pragma: no cover - ASGI transport glue is exercised in deployment smoke tests.
+    async def __call__(self, scope, receive, send):  # pragma: no cover
         """Handle client POST messages for MCP communication."""
         client_host = scope.get('client')[0] if scope.get('client') else 'unknown'
         client_port = scope.get('client')[1] if scope.get('client') else 'unknown'
@@ -1642,7 +1641,7 @@ mcp_router = Router([
 # Mount the MCP router to the main app
 app.routes.append(Mount("/", app=mcp_router))
 
-@app.get("/healthz", tags=["Health"])
+@app.get("/health", tags=["Health"])
 async def health_check():
     """Check connectivity to the Metasploit RPC service."""
     try:
@@ -1683,7 +1682,7 @@ def find_available_port(start_port, host='127.0.0.1', max_attempts=10):
     logger.warning(f"Could not find available port in range {start_port}-{start_port+max_attempts-1} on {host}. Using default {start_port}.")
     return start_port
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # --- Setup argument parser for transport mode and server configuration ---
     import argparse
     

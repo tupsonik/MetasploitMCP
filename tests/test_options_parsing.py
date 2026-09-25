@@ -4,25 +4,8 @@ Unit tests for the options parsing functionality in MetasploitMCP.
 """
 
 import pytest
-import sys
-import os
-from unittest.mock import Mock, patch
-from typing import Dict, Any, Union
+from unittest.mock import patch
 
-# Add the parent directory to the path to import MetasploitMCP
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-# Mock the dependencies that aren't available in test environment
-sys.modules['uvicorn'] = Mock()
-sys.modules['fastapi'] = Mock()
-sys.modules['mcp.server.fastmcp'] = Mock()
-sys.modules['mcp.server.sse'] = Mock()
-sys.modules['pymetasploit3.msfrpc'] = Mock()
-sys.modules['starlette.applications'] = Mock()
-sys.modules['starlette.routing'] = Mock()
-sys.modules['mcp.server.session'] = Mock()
-
-# Import the function we want to test
 from MetasploitMCP import _parse_options_gracefully
 
 
@@ -138,19 +121,28 @@ class TestParseOptionsGracefully:
 
     def test_error_missing_equals(self):
         """Test error handling for missing equals sign."""
-        with pytest.raises(ValueError, match="missing '='"):
+        with pytest.raises(ValueError, match="expected key=value"):
             _parse_options_gracefully("LHOST192.168.1.100")
 
-        with pytest.raises(ValueError, match="missing '='"):
+        with pytest.raises(ValueError, match="expected key=value"):
             _parse_options_gracefully("LHOST=192.168.1.100,LPORT4444")
 
     def test_error_empty_key(self):
         """Test error handling for empty key."""
-        with pytest.raises(ValueError, match="empty key"):
+        with pytest.raises(ValueError, match="key is empty"):
             _parse_options_gracefully("=value")
 
-        with pytest.raises(ValueError, match="empty key"):
+        with pytest.raises(ValueError, match="key is empty"):
             _parse_options_gracefully("LHOST=192.168.1.100,=4444")
+
+    def test_error_does_not_echo_option_values(self):
+        """Sensitive option values must not be included in parser errors."""
+        secret = "super-secret-password"
+        with pytest.raises(ValueError) as exc_info:
+            _parse_options_gracefully(f"Password={secret},BrokenOption")
+
+        assert secret not in str(exc_info.value)
+        assert "expected key=value" in str(exc_info.value)
 
     def test_error_invalid_type(self):
         """Test error handling for invalid input types."""
