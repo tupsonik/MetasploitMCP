@@ -248,15 +248,14 @@ class TestRunCommandSafely:
 
     @pytest.mark.asyncio
     async def test_run_command_safely_read_error(self, mock_console):
-        """Test command execution with read error - should timeout gracefully."""
+        """Read errors should back off without waiting for the full inactivity timeout."""
         mock_console.read.side_effect = Exception("Read failed")
 
-        # Should not raise exception, but timeout and return empty result
-        result = await run_command_safely(mock_console, 'help')
-        
-        # Should return empty string after timeout
-        assert isinstance(result, str)
-        assert result == ""  # Empty result after timeout
+        with patch("MetasploitMCP.SESSION_READ_INACTIVITY_TIMEOUT", 0):
+            result = await run_command_safely(mock_console, "help")
+
+        assert result == ""
+
 
 
 class TestFindAvailablePort:
