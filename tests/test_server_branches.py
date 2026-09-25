@@ -233,7 +233,7 @@ async def test_execute_module_console_auxiliary_success():
     async def fake_command(*args, **kwargs):
         return next(outputs)
     with (
-        patch.object(app, "get_msf_console", return_value=app._test_console_context(console)),
+        patch.object(app, "get_msf_console", return_value=_Context(console)),
         patch.object(app, "run_command_safely", new=AsyncMock(side_effect=fake_command)),
     ):
         result = await app._execute_module_console(
@@ -251,7 +251,7 @@ async def test_execute_module_console_setup_error():
         calls["n"] += 1
         return "[-] Error setting option" if calls["n"] == 2 else ""
     with (
-        patch.object(app, "get_msf_console", return_value=app._test_console_context(console)),
+        patch.object(app, "get_msf_console", return_value=_Context(console)),
         patch.object(app, "run_command_safely", new=AsyncMock(side_effect=fake_command)),
     ):
         result = await app._execute_module_console(
