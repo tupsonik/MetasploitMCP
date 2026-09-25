@@ -121,7 +121,7 @@ class TestParseOptionsGracefully:
 
     def test_error_missing_equals(self):
         """Test error handling for missing equals sign."""
-        with pytest.raises(ValueError, match="missing '='"):
+        with pytest.raises(ValueError, match="expected key=value"):
             _parse_options_gracefully("LHOST192.168.1.100")
 
         with pytest.raises(ValueError, match="missing '='"):
@@ -129,11 +129,20 @@ class TestParseOptionsGracefully:
 
     def test_error_empty_key(self):
         """Test error handling for empty key."""
-        with pytest.raises(ValueError, match="empty key"):
+        with pytest.raises(ValueError, match="key is empty"):
             _parse_options_gracefully("=value")
 
         with pytest.raises(ValueError, match="empty key"):
             _parse_options_gracefully("LHOST=192.168.1.100,=4444")
+
+    def test_error_does_not_echo_option_values(self):
+        """Sensitive option values must not be included in parser errors."""
+        secret = "super-secret-password"
+        with pytest.raises(ValueError) as exc_info:
+            _parse_options_gracefully(f"Password={secret},BrokenOption")
+
+        assert secret not in str(exc_info.value)
+        assert "expected key=value" in str(exc_info.value)
 
     def test_error_invalid_type(self):
         """Test error handling for invalid input types."""
