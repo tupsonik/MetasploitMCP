@@ -332,7 +332,7 @@ async def run_command_safely(console: MsfConsole, cmd: str, execution_timeout: O
                 # Secondary Check: Does the buffered output end with the prompt?
                 # Needed if prompt wasn't in the last read chunk but arrived earlier.
                 if MSF_PROMPT_RE.search(output_buffer):
-                     logger.debug(f"Detected MSF prompt at end of buffer for '{cmd}'. Command likely complete.")
+                     logger.debug("Detected MSF prompt at end of console buffer; command likely complete.")
                      break
 
             # Fallback Completion Check: Inactivity timeout
@@ -342,11 +342,11 @@ async def run_command_safely(console: MsfConsole, cmd: str, execution_timeout: O
 
         # Decode the final buffer
         final_output = output_buffer.decode('utf-8', errors='replace').strip()
-        logger.debug(f"Final output for '{cmd}' (length {len(final_output)}):\n{final_output[:500]}{'...' if len(final_output) > 500 else ''}")
+        logger.debug(f"Console command completed; output length={len(final_output)}.")
         return final_output
 
     except Exception as e:
-        logger.exception(f"Error executing console command '{cmd}'")
+        logger.exception("Error executing console command; command content redacted.")
         raise RuntimeError(f"Failed executing console command '{cmd}': {e}") from e
 
 from mcp.server.session import ServerSession
