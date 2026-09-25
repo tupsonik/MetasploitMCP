@@ -10,6 +10,17 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 import MetasploitMCP as app
+
+
+class _Context:
+    def __init__(self, value):
+        self.value = value
+
+    async def __aenter__(self):
+        return self.value
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
 from tests.fakes import MockMsfRpcClient, MockMsfRpcError
 
 
