@@ -58,6 +58,7 @@ if ! docker ps -a --format '{{.Names}}' | grep -qx 'metasploit-rpc-codespace'; t
     --name metasploit-rpc-codespace \
     --restart unless-stopped \
     -e HOME=/home/msf \
+    -e MSF_PASSWORD="$MSF_PASSWORD" \
     -p 127.0.0.1:55553:55553 \
     --entrypoint /bin/sh \
     metasploitframework/metasploit-framework:6.5.5 \
@@ -111,9 +112,7 @@ echo "=============================================="
 echo "MetasploitMCP is running on port 8085."
 echo "Security: high-impact capabilities are OFF."
 echo
-echo "MCP bearer token:"
-echo "$MCP_AUTH_TOKEN"
-echo
+echo "MCP bearer token is stored in .codespace.env."
 echo "Logs: .codespace-mcp.log"
 echo "Stop MCP: kill $(cat .codespace-mcp.pid)"
 echo "Stop Metasploit: docker stop metasploit-rpc-codespace"
