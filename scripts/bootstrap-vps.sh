@@ -20,7 +20,7 @@ if [[ ! -f .env ]]; then
     exit 1
   fi
 
-  MSF_PASSWORD="$(openssl rand -base64 36 | tr -dc 'A-Za-z0-9' | head -c 32)"
+  MSF_PASSWORD="$(openssl rand -hex 16)"
   MCP_AUTH_TOKEN="$(openssl rand -hex 32)"
 
   cat > .env <<EOF
