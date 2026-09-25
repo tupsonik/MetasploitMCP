@@ -347,7 +347,7 @@ async def run_command_safely(console: MsfConsole, cmd: str, execution_timeout: O
 
     except Exception as e:
         logger.exception("Error executing console command; command content redacted.")
-        raise RuntimeError(f"Failed executing console command '{cmd}': {e}") from e
+        raise RuntimeError(f"Failed executing console command: {type(e).__name__}") from e
 
 from mcp.server.session import ServerSession
 
@@ -432,7 +432,7 @@ async def _execute_module_rpc(
                  logger.error(f"Failed to prepare payload object for '{payload_name}': {e}")
                  return {"status": "error", "message": f"Failed to prepare payload '{payload_name}': {e}"}
         else:
-             logger.warning(f"Invalid payload_spec format: {payload_spec}. Expected string or dict with 'name'.")
+             logger.warning("Invalid payload specification format; contents redacted.")
              return {"status": "error", "message": "Invalid payload specification format."}
 
     logger.info(f"Executing module {full_module_path} as background job via RPC...")
@@ -579,7 +579,7 @@ async def _execute_module_console(
             for key, value in module_options.items():
                 _validate_option_key(key)
                 val_str = str(value)
-                if isinstance(value, str) and any(c in val_str for c in [' ', '"', "'", '\\']):
+                if isinstance(value, str):
                     val_str = shlex.quote(val_str)
                 elif isinstance(value, bool):
                     val_str = str(value).lower() # MSF console expects lowercase bools
@@ -590,9 +590,9 @@ async def _execute_module_console(
                 payload_name = None
                 payload_options = {}
                 if isinstance(payload_spec, str):
-                    payload_name = payload_spec
+                    payload_name = _validate_module_name(payload_spec)
                 elif isinstance(payload_spec, dict) and 'name' in payload_spec:
-                    payload_name = payload_spec['name']
+                    payload_name = _validate_module_name(payload_spec['name'])
                     payload_options = payload_spec.get('options', {})
 
                 if payload_name:
@@ -609,7 +609,7 @@ async def _execute_module_console(
                     for key, value in payload_options.items():
                         _validate_option_key(key)
                         val_str = str(value)
-                        if isinstance(value, str) and any(c in val_str for c in [' ', '"', "'", '\\']):
+                        if isinstance(value, str):
                             val_str = shlex.quote(val_str)
                         elif isinstance(value, bool):
                             val_str = str(value).lower()
@@ -620,9 +620,8 @@ async def _execute_module_console(
                 setup_output = await run_command_safely(console, cmd, execution_timeout=DEFAULT_CONSOLE_READ_TIMEOUT)
                 # Basic error check in setup output
                 if any(err in setup_output for err in ["[-] Error setting", "Invalid option", "Unknown module", "Failed to load"]):
-                    error_msg = f"Error during setup command '{cmd}': {setup_output}"
-                    logger.error(error_msg)
-                    return {"status": "error", "message": error_msg, "module": full_module_path}
+                    logger.error("Metasploit module setup reported an error; command content redacted.")
+                    return {"status": "error", "message": "Metasploit module setup failed.", "module": full_module_path}
                 await asyncio.sleep(0.1) # Small delay between setup commands
 
             # Execute the final command (exploit, run, check)
