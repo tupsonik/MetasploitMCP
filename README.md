@@ -209,6 +209,48 @@ Check liveness:
 curl http://127.0.0.1:8085/healthz
 ```
 
+
+### One-command VPS deployment
+
+For a phone-friendly deployment, the repository includes a complete Docker Compose stack with:
+
+- Metasploit RPC running privately on the Compose network
+- Metasploit MCP running behind the RPC service
+- Caddy providing HTTPS on ports 80/443
+- Bearer authentication required for MCP HTTP access
+- Persistent Metasploit and payload volumes
+- Automatic container restarts
+
+The stack uses Rapid7's official Metasploit Framework image and pins it to a known release. (See the official image and release tags.)
+
+Requirements on the VPS:
+
+- Linux VPS with Docker Engine and Docker Compose v2
+- Public DNS A record pointing the chosen MCP domain to the VPS
+- TCP ports 80 and 443 allowed through the VPS firewall
+- amd64 CPU for the currently pinned Rapid7 image tag
+
+Deploy:
+
+```bash
+git clone https://github.com/tupsonik/MetasploitMCP.git
+cd MetasploitMCP
+bash scripts/bootstrap-vps.sh
+```
+
+The bootstrap script creates `.env` with random Metasploit and MCP secrets when it does not already exist, builds the MCP image, pulls the Metasploit/Caddy images, and starts the stack.
+
+Check the stack:
+
+```bash
+docker compose -f docker-compose.vps.yml --env-file .env ps
+curl -fsS https://YOUR_DOMAIN/healthz
+```
+
+The Metasploit RPC port is intentionally not published to the VPS host. Only the MCP HTTPS endpoint is exposed publicly, and MCP bearer authentication remains enabled.
+
+For the first assessment, keep the high-impact capabilities disabled and enable only the specific capability needed for an authorized test.
+
 ## Testing
 
 This project includes comprehensive unit and integration tests to ensure reliability and maintainability.
