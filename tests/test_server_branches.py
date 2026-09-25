@@ -21,7 +21,11 @@ async def test_check_msf_connection_success():
 
 @pytest.mark.asyncio
 async def test_check_msf_connection_timeout():
-    with patch.object(app.asyncio, "to_thread", new_callable=AsyncMock, side_effect=asyncio.TimeoutError):
+    client = MockMsfRpcClient()
+    with (
+        patch.object(app, "get_msf_client", return_value=client),
+        patch.object(app.asyncio, "to_thread", new_callable=AsyncMock, side_effect=asyncio.TimeoutError),
+    ):
         result = await app.check_msf_connection()
     assert result["status"] == "timeout"
 
@@ -108,9 +112,11 @@ async def test_run_command_safely_overall_timeout():
     console = Mock()
     console.write = Mock()
     console.read = Mock(return_value={"data": "", "prompt": "", "busy": True})
-    times = iter([0.0, 2.0])
+    fake_loop = Mock()
+    fake_loop.time = Mock(side_effect=[0.0, 2.0])
     with (
-        patch.object(app.asyncio.get_event_loop(), "time", side_effect=lambda: next(times)),
+        patch.object(app.asyncio, "get_event_loop", return_value=fake_loop),
+        patch.object(app.asyncio, "sleep", new_callable=AsyncMock),
         patch.object(app, "DEFAULT_CONSOLE_READ_TIMEOUT", 1),
     ):
         result = await app.run_command_safely(console, "help")
@@ -263,7 +269,10 @@ async def test_execute_module_console_setup_error():
 @pytest.mark.asyncio
 async def test_execute_module_console_invalid_payload_name():
     console = MockMsfConsole()
-    with pytest.raises(ValueError, match="Invalid Metasploit module name"):
+    with (
+        patch.object(app, "get_msf_console", return_value=_Context(console)),
+        pytest.raises(ValueError, match="Invalid Metasploit module name"),
+    ):
         await app._execute_module_console(
             "exploit", "test/module", {}, "exploit",
             {"name": "bad payload;exit", "options": {}},
