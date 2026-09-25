@@ -52,14 +52,21 @@ This MCP server provides a bridge between large language models like Claude and 
    ```
    pip install -r requirements.txt
    ```
-3. Configure environment variables (optional):
+3. Configure environment variables. `MSF_PASSWORD` is required; there is no insecure default:
+   ```bash
+   export MSF_PASSWORD='your-msf-password'
+   export MSF_SERVER=127.0.0.1
+   export MSF_PORT=55553
+   export MSF_SSL=false
+   export PAYLOAD_SAVE_DIR="$HOME/payloads"
+
+   # High-impact capabilities are disabled by default.
+   export MCP_ALLOW_ACTIVE_ACTIONS=false
+   export MCP_ALLOW_SESSION_CONTROL=false
+   export MCP_ALLOW_PAYLOAD_GENERATION=false
+   export MCP_ALLOW_LISTENER_CONTROL=false
    ```
-   MSF_PASSWORD=yourpassword
-   MSF_SERVER=127.0.0.1
-   MSF_PORT=55553
-   MSF_SSL=false
-   PAYLOAD_SAVE_DIR=/path/to/save/payloads  # Optional: Where to save generated payloads
-   ```
+   See `.env.example` for the complete configuration.
 
 ## Usage
 
@@ -68,6 +75,12 @@ Start the Metasploit RPC service:
 ```bash
 msfrpcd -P yourpassword -S -a 127.0.0.1 -p 55553
 ```
+
+### Security-first defaults
+
+High-impact capabilities are disabled by default. Enable only the capabilities required for an authorized lab or assessment.
+
+For HTTP/SSE, keep the server bound to `127.0.0.1` unless remote access is required. With `MCP_REQUIRE_AUTH=auto`, a non-loopback binding requires a Bearer token in `MCP_AUTH_TOKEN`.
 
 ### Transport Options
 
@@ -88,7 +101,7 @@ python MetasploitMCP.py --transport stdio
 
 Additional options for HTTP mode:
 ```bash
-python MetasploitMCP.py --transport http --host 0.0.0.0 --port 8085
+MCP_AUTH_TOKEN='use-a-long-random-token' MCP_ALLOW_ACTIVE_ACTIONS=true python MetasploitMCP.py --transport http --host 0.0.0.0 --port 8085
 ```
 
 ### Claude Desktop Integration
@@ -109,7 +122,8 @@ For Claude Desktop integration, configure `claude_desktop_config.json`:
                 "stdio"
             ],
             "env": {
-                "MSF_PASSWORD": "yourpassword"
+                "MSF_PASSWORD": "yourpassword",
+                "MCP_ALLOW_ACTIVE_ACTIONS": "true"
             }
         }
     }
@@ -130,13 +144,16 @@ For other MCP clients that use HTTP/SSE:
 
 ## Security Considerations
 
-⚠️ **IMPORTANT SECURITY WARNING**:
+This server exposes Metasploit through MCP and should be treated as privileged security infrastructure.
 
-This tool provides direct access to Metasploit Framework capabilities, which include powerful exploitation features. Use responsibly and only in environments where you have explicit permission to perform security testing.
+- Run only against systems you are authorized to test.
+- Keep HTTP/SSE on loopback unless remote access is explicitly required.
+- Use `MCP_AUTH_TOKEN` for non-loopback HTTP deployments.
+- Keep high-impact capability flags disabled until needed.
+- Do not commit `.env`, RPC passwords, Bearer tokens, private keys, or generated payloads.
+- Review tool parameters and outputs before using them in a real assessment.
 
-- Always validate and review all commands before execution
-- Only run in segregated test environments or with proper authorization
-- Be aware that post-exploitation commands can result in significant system modifications
+See [SECURITY.md](SECURITY.md) for the security policy.
 
 ## Example Workflows
 
