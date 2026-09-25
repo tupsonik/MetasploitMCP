@@ -1,0 +1,61 @@
+name: Safe web file-tree reconnaissance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recon public paths
+        shell: bash
+        run: |
+          set -u
+          TARGET="https://webgl.greenhost.pw"
+          OUT="recon"
+          mkdir -p "$OUT"
+
+          printf '%s\n' "== Response headers ==" > "$OUT/headers.txt"
+          curl -k -I --max-time 15 -sS "$TARGET/" >> "$OUT/headers.txt" 2>&1 || true
+
+          printf '%s\n' "== Public metadata ==" > "$OUT/public-paths.txt"
+          for p in /robots.txt /sitemap.xml /.well-known/security.txt /security.txt; do
+            code=$(curl -k -L --max-time 10 -sS -o "$OUT/body.tmp" -w '%{http_code}' "$TARGET$p" 2>/dev/null || true)
+            printf '%-4s %s\n' "$code" "$p" | tee -a "$OUT/public-paths.txt"
+            if [ "$code" = "200" ]; then
+              cp "$OUT/body.tmp" "$OUT/$(echo "$p" | tr '/.' '__').txt"
+            fi
+          done
+
+          printf '%s\n' "== Common public paths ==" > "$OUT/common-paths.txt"
+          for p in /assets/ /static/ /uploads/ /images/ /js/ /css/ /backup/ /backups/ /files/ /download/ /admin/ /api/; do
+            code=$(curl -k -L --max-time 8 -sS -o /dev/null -w '%{http_code}' "$TARGET$p" 2>/dev/null || true)
+            printf '%-4s %s\n' "$code" "$p" | tee -a "$OUT/common-paths.txt"
+          done
+
+          printf '%s\n' "== Homepage linked paths ==" > "$OUT/linked-paths.txt"
+          curl -k -L --max-time 15 -sS "$TARGET/" -o "$OUT/homepage.html" 2>/dev/null || true
+          if [ -s "$OUT/homepage.html" ]; then
+            grep -Eoi '(href|src)=["'"''][^"'"'']+["'"'']' "$OUT/homepage.html"               | sed -E 's/^(href|src)=["'"'']//'               | sed -E 's/["'"'']$//'               | sort -u >> "$OUT/linked-paths.txt" || true
+          fi
+
+          printf '%s\n' "== Directory listing indicators ==" > "$OUT/listing-check.txt"
+          for p in / /assets/ /static/ /uploads/ /files/ /backup/; do
+            body=$(curl -k -L --max-time 8 -sS "$TARGET$p" 2>/dev/null || true)
+            if printf '%s' "$body" | grep -Eiq 'Index of /|Directory listing for|Parent Directory'; then
+              printf 'POSSIBLE LISTING: %s\n' "$p" >> "$OUT/listing-check.txt"
+            else
+              printf 'No obvious listing marker: %s\n' "$p" >> "$OUT/listing-check.txt"
+            fi
+          done
+
+          rm -f "$OUT/body.tmp"
+          echo "Recon finished."
+      - name: Upload recon results
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-recon
+          path: recon/
