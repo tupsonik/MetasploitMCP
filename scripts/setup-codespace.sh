@@ -58,8 +58,9 @@ else
     --name metasploit-rpc-codespace \
     --restart unless-stopped \
     -e HOME=/home/msf \
+    -p 127.0.0.1:55553:55553 \
     metasploitframework/metasploit-framework:6.5.5 \
-    msfrpcd -P "$MSF_PASSWORD" -S -a 0.0.0.0 -p 55553 >/dev/null
+    /usr/src/metasploit-framework/msfrpcd -U msf -P "$MSF_PASSWORD" -S -a 0.0.0.0 -p 55553 -f >/dev/null
 fi
 
 echo "Waiting for Metasploit RPC..."
