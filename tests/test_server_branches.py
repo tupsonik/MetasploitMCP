@@ -269,14 +269,14 @@ async def test_execute_module_console_setup_error():
 @pytest.mark.asyncio
 async def test_execute_module_console_invalid_payload_name():
     console = MockMsfConsole()
-    with (
-        patch.object(app, "get_msf_console", return_value=_Context(console)),
-        pytest.raises(ValueError, match="Invalid Metasploit module name"),
-    ):
-        await app._execute_module_console(
+    with patch.object(app, "get_msf_console", return_value=_Context(console)):
+        result = await app._execute_module_console(
             "exploit", "test/module", {}, "exploit",
             {"name": "bad payload;exit", "options": {}},
         )
+
+    assert result["status"] == "error"
+    assert "Invalid Metasploit module name" in result["message"]
 
 
 @pytest.mark.asyncio
