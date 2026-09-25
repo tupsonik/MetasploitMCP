@@ -23,6 +23,12 @@ from mcp.server.sse import SseServerTransport
 from pymetasploit3.msfrpc import MsfConsole, MsfRpcClient, MsfRpcError
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route, Router
+from msf_client import create_rpc_client, parse_rpc_config
+from tools.helpers import (
+    get_module_object,
+    parse_options_gracefully,
+    set_module_options,
+)
 
 # --- Configuration ---
 
@@ -117,21 +123,24 @@ def initialize_msf_client() -> MsfRpcClient:
     logger.info("Attempting to initialize Metasploit RPC client...")
 
     try:
-        msf_port = int(MSF_PORT_STR)
-        msf_ssl = MSF_SSL_STR.lower() == 'true'
-        if not _is_loopback_host(MSF_SERVER) and not msf_ssl:
-            logger.warning("MSF_SERVER is remote while MSF_SSL=false; use TLS for remote RPC when possible.")
+        rpc_config = parse_rpc_config(MSF_SERVER, MSF_PORT_STR, MSF_SSL_STR)
+        if not _is_loopback_host(rpc_config.server) and not rpc_config.ssl:
+            logger.warning(
+                "MSF_SERVER is remote while MSF_SSL=false; use TLS for remote RPC when possible."
+            )
     except ValueError as e:
-        logger.error(f"Invalid MSF connection parameters (PORT: {MSF_PORT_STR}, SSL: {MSF_SSL_STR}). Error: {e}")
+        logger.error("Invalid MSF connection parameters.")
         raise ValueError("Invalid MSF connection parameters") from e
 
     try:
-        logger.debug(f"Attempting to create MsfRpcClient connection to {MSF_SERVER}:{msf_port} (SSL: {msf_ssl})...")
-        client = MsfRpcClient(
+        logger.debug(
+            f"Attempting to create MsfRpcClient connection to "
+            f"{rpc_config.server}:{rpc_config.port} (SSL: {rpc_config.ssl})..."
+        )
+        client = create_rpc_client(
             password=MSF_PASSWORD,
-            server=MSF_SERVER,
-            port=msf_port,
-            ssl=msf_ssl
+            config=rpc_config,
+            client_factory=MsfRpcClient,
         )
         # Test connection during initialization
         logger.debug("Testing connection with core.version call...")
@@ -365,137 +374,22 @@ mcp = FastMCP("Metasploit Tools Enhanced (Streamlined)")
 
 # --- Internal Helper Functions ---
 
-def _parse_options_gracefully(options: Union[Dict[str, Any], str, None]) -> Dict[str, Any]:
-    """
-    Gracefully parse options from different formats.
-    
-    Handles:
-    - Dict format (correct): {"key": "value", "key2": "value2"}
-    - String format (common mistake): "key=value,key=value"
-    - None: returns empty dict
-    
-    Args:
-        options: Options in dict format, string format, or None
-        
-    Returns:
-        Dictionary of parsed options
-        
-    Raises:
-        ValueError: If string format is malformed
-    """
-    if options is None:
-        return {}
-    
-    if isinstance(options, dict):
-        # Already correct format
-        return options
-    
-    if isinstance(options, str):
-        # Handle the common mistake format: "key=value,key=value"
-        if not options.strip():
-            return {}
-            
-        logger.info("Converting string format options to dict; values redacted.")
-        parsed_options = {}
-        
-        try:
-            # Split by comma and then by equals
-            pairs = [pair.strip() for pair in options.split(',') if pair.strip()]
-            for pair in pairs:
-                if '=' not in pair:
-                    raise ValueError(f"Invalid option format: '{pair}' (missing '=')")
-                
-                key, value = pair.split('=', 1)  # Split only on first '='
-                key = key.strip()
-                value = value.strip()
-                
-                # Validate key is not empty
-                if not key:
-                    raise ValueError(f"Invalid option format: '{pair}' (empty key)")
-                
-                # Remove quotes if they wrap the entire value
-                if (value.startswith('"') and value.endswith('"')) or \
-                   (value.startswith("'") and value.endswith("'")):
-                    value = value[1:-1]
-                
-                # Basic type conversion
-                if value.lower() in ('true', 'false'):
-                    value = value.lower() == 'true'
-                elif value.isdigit():
-                    try:
-                        value = int(value)
-                    except ValueError:
-                        pass  # Keep as string if conversion fails
-                
-                parsed_options[key] = value
-            
-            logger.info(f"Successfully converted string options to dict with {len(parsed_options)} keys.")
-            return parsed_options
-            
-        except Exception as e:
-            raise ValueError(f"Failed to parse options string '{options}': {e}. Expected format: 'key=value,key2=value2' or dict {{'key': 'value'}}")
-    
-    # For any other type, try to convert to dict
-    try:
-        return dict(options)
-    except (TypeError, ValueError) as e:
-        raise ValueError(f"Options must be a dictionary or comma-separated string format 'key=value,key2=value2'. Got {type(options)}: {options}")
+def _parse_options_gracefully(
+    options: Union[Dict[str, Any], str, None]
+) -> Dict[str, Any]:
+    """Compatibility wrapper for the extracted options parser."""
+    return parse_options_gracefully(options, logger)
+
 
 async def _get_module_object(module_type: str, module_name: str) -> Any:
-    """Gets the MSF module object, handling potential path variations."""
-    client = get_msf_client()
-    module_name = _validate_module_name(module_name)
-    base_module_name = module_name # Start assuming it's the base name
-    if '/' in module_name:
-        parts = module_name.split('/')
-        if parts[0] in ('exploit', 'payload', 'post', 'auxiliary', 'encoder', 'nop'):
-             # Looks like full path, extract base name
-             base_module_name = '/'.join(parts[1:])
-             if module_type != parts[0]:
-                 logger.warning(f"Module type mismatch: expected '{module_type}', got path starting with '{parts[0]}'. Using provided type.")
-        # Else: Assume it's like 'windows/smb/ms17_010_eternalblue' - already the base name
+    """Compatibility wrapper for the extracted module resolver."""
+    return await get_module_object(module_type, module_name, get_msf_client, logger)
 
-    logger.debug(f"Attempting to retrieve module: client.modules.use('{module_type}', '{base_module_name}')")
-    try:
-        module_obj = await asyncio.to_thread(lambda: client.modules.use(module_type, base_module_name))
-        logger.debug(f"Successfully retrieved module object for {module_type}/{base_module_name}")
-        return module_obj
-    except (MsfRpcError, KeyError) as e:
-        # KeyError can be raised by pymetasploit3 if module not found
-        error_str = str(e).lower()
-        if "unknown module" in error_str or "invalid module" in error_str or isinstance(e, KeyError):
-             logger.error(f"Module {module_type}/{base_module_name} (from input {module_name}) not found.")
-             raise ValueError(f"Module '{module_name}' of type '{module_type}' not found.") from e
-        else:
-             logger.error(f"MsfRpcError getting module {module_type}/{base_module_name}: {e}")
-             raise MsfRpcError(f"Error retrieving module '{module_name}': {e}") from e
 
 async def _set_module_options(module_obj: Any, options: Dict[str, Any]):
-    """Sets options on a module object, performing basic type guessing."""
-    logger.debug(f"Setting options for module {getattr(module_obj, 'fullname', '')}; values redacted.")
-    for k, v in options.items():
-        _validate_option_key(k)
-        # Basic type guessing
-        original_value = v
-        if isinstance(v, str):
-            if v.isdigit():
-                try: v = int(v)
-                except ValueError: pass # Keep as string if large number or non-integer
-            elif v.lower() in ('true', 'false'):
-                v = v.lower() == 'true'
-            # Add more specific checks if needed (e.g., for file paths)
-        elif isinstance(v, (int, bool)):
-            pass # Already correct type
-        # Add handling for other types like lists if necessary
+    """Compatibility wrapper for the extracted option setter."""
+    return await set_module_options(module_obj, options, logger)
 
-        try:
-            # Use lambda to capture current k, v for the thread
-            await asyncio.to_thread(lambda key=k, value=v: module_obj.__setitem__(key, value))
-            # logger.debug(f"Set option {k}={v} (original: {original_value})")
-        except (MsfRpcError, KeyError, TypeError) as e:
-             # Catch potential errors if option doesn't exist or type is wrong
-             logger.error(f"Failed to set option {k} on module: {e}")
-             raise ValueError(f"Failed to set option '{k}': {e}") from e
 
 async def _execute_module_rpc(
     module_type: str,
