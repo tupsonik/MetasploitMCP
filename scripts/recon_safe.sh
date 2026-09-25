@@ -2,6 +2,12 @@
 set -euo pipefail
 
 TARGET="${1:-webgl.greenhost.pw}"
+
+if ! command -v nmap >/dev/null 2>&1; then
+  echo "Nmap nie jest zainstalowany — instaluję go w Codespace..."
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq nmap
+fi
 OUT="recon-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT"
 
