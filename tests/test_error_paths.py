@@ -123,6 +123,37 @@ async def test_generate_payload_missing_generate_method():
 
 
 @pytest.mark.asyncio
+async def test_execute_module_console_quotes_string_option():
+    """Console option values containing separators must be quoted."""
+    console = Mock()
+    console.write = Mock()
+    console.read = Mock(return_value={
+        "data": "msf6 > ",
+        "prompt": "\x01\x02msf6\x01\x02 \x01\x02> \x01\x02",
+        "busy": False,
+    })
+    calls = []
+
+    async def fake_command(_console, command, execution_timeout=None):
+        calls.append(command)
+        return "msf6 > "
+
+    with (
+        patch.object(app, "get_msf_console", return_value=_Context(console)),
+        patch.object(app, "run_command_safely", new_callable=AsyncMock, side_effect=fake_command),
+        patch.object(app.asyncio, "sleep", new_callable=AsyncMock),
+    ):
+        result = await app._execute_module_console(
+            "auxiliary", "scanner/http/title",
+            {"RHOSTS": "example.com; echo SHOULD_NOT_EXECUTE"},
+            "run",
+        )
+
+    assert result["status"] == "success"
+    assert "set RHOSTS 'example.com; echo SHOULD_NOT_EXECUTE'" in calls
+
+
+@pytest.mark.asyncio
 async def test_run_exploit_check_exception_continues():
     with (
         patch.object(app, "_execute_module_console", new_callable=AsyncMock, side_effect=RuntimeError("check failed")),
@@ -226,7 +257,7 @@ async def test_send_session_command_meterpreter_error():
     client.sessions.session = Mock(return_value=session)
     with patch.object(app, "get_msf_client", return_value=client):
         result = await app.send_session_command(100, "id")
-    assert result["status"] == "success" or result["status"] == "error"
+    assert result["status"] == "error"
 
 
 @pytest.mark.asyncio
