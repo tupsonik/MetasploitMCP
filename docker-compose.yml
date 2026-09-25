@@ -1,0 +1,25 @@
+services:
+  metasploit-mcp:
+    build: .
+    restart: unless-stopped
+    environment:
+      MSF_PASSWORD: ${MSF_PASSWORD:?Set MSF_PASSWORD in .env}
+      MSF_SERVER: ${MSF_SERVER:-host.docker.internal}
+      MSF_PORT: ${MSF_PORT:-55553}
+      MSF_SSL: ${MSF_SSL:-false}
+      MCP_REQUIRE_AUTH: ${MCP_REQUIRE_AUTH:-auto}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env}
+      MCP_ALLOW_ACTIVE_ACTIONS: ${MCP_ALLOW_ACTIVE_ACTIONS:-false}
+      MCP_ALLOW_SESSION_CONTROL: ${MCP_ALLOW_SESSION_CONTROL:-false}
+      MCP_ALLOW_PAYLOAD_GENERATION: ${MCP_ALLOW_PAYLOAD_GENERATION:-false}
+      MCP_ALLOW_LISTENER_CONTROL: ${MCP_ALLOW_LISTENER_CONTROL:-false}
+      PAYLOAD_SAVE_DIR: /app/payloads
+    ports:
+      - "127.0.0.1:8085:8085"
+    volumes:
+      - payloads:/app/payloads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  payloads:
