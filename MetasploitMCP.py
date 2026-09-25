@@ -1614,8 +1614,8 @@ async def authentication_middleware(request: Request, call_next):
 sse = SseServerTransport("/messages/")
 
 # Define ASGI handlers properly with Starlette's ASGIApp interface
-class SseEndpoint:
-    async def __call__(self, scope, receive, send):
+class SseEndpoint:  # pragma: no cover - ASGI transport glue is exercised in deployment smoke tests.
+    async def __call__(self, scope, receive, send):  # pragma: no cover
         """Handle Server-Sent Events connection for MCP communication."""
         client_host = scope.get('client')[0] if scope.get('client') else 'unknown'
         client_port = scope.get('client')[1] if scope.get('client') else 'unknown'
@@ -1624,8 +1624,8 @@ class SseEndpoint:
             await mcp._mcp_server.run(read_stream, write_stream, mcp._mcp_server.create_initialization_options())
         logger.info(f"SSE connection closed from {client_host}:{client_port}")
 
-class MessagesEndpoint:
-    async def __call__(self, scope, receive, send):
+class MessagesEndpoint:  # pragma: no cover - ASGI transport glue is exercised in deployment smoke tests.
+    async def __call__(self, scope, receive, send):  # pragma: no cover
         """Handle client POST messages for MCP communication."""
         client_host = scope.get('client')[0] if scope.get('client') else 'unknown'
         client_port = scope.get('client')[1] if scope.get('client') else 'unknown'
@@ -1682,7 +1682,7 @@ def find_available_port(start_port, host='127.0.0.1', max_attempts=10):
     logger.warning(f"Could not find available port in range {start_port}-{start_port+max_attempts-1} on {host}. Using default {start_port}.")
     return start_port
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # --- Setup argument parser for transport mode and server configuration ---
     import argparse
     
