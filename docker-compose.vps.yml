@@ -1,0 +1,73 @@
+services:
+  metasploit-rpc:
+    image: metasploitframework/metasploit-framework:6.5.5
+    restart: unless-stopped
+    environment:
+      MSF_RPC_USER: msf
+      MSF_RPC_PASS: ${MSF_PASSWORD:?Set MSF_PASSWORD in .env}
+    command:
+      - msfrpcd
+      - -a
+      - 0.0.0.0
+      - -p
+      - "55553"
+      - -S
+      - -f
+    expose:
+      - "55553"
+    volumes:
+      - msf-data:/home/msf/.msf4
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - ruby -rsocket -e 's=TCPSocket.new("127.0.0.1",55553); s.close'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  metasploit-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MSF_PASSWORD: ${MSF_PASSWORD:?Set MSF_PASSWORD in .env}
+      MSF_SERVER: metasploit-rpc
+      MSF_PORT: "55553"
+      MSF_SSL: "false"
+      MCP_REQUIRE_AUTH: "true"
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env}
+      MCP_ALLOW_ACTIVE_ACTIONS: ${MCP_ALLOW_ACTIVE_ACTIONS:-false}
+      MCP_ALLOW_SESSION_CONTROL: ${MCP_ALLOW_SESSION_CONTROL:-false}
+      MCP_ALLOW_PAYLOAD_GENERATION: ${MCP_ALLOW_PAYLOAD_GENERATION:-false}
+      MCP_ALLOW_LISTENER_CONTROL: ${MCP_ALLOW_LISTENER_CONTROL:-false}
+      PAYLOAD_SAVE_DIR: /app/payloads
+    depends_on:
+      metasploit-rpc:
+        condition: service_healthy
+    expose:
+      - "8085"
+    volumes:
+      - payloads:/app/payloads
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      MCP_DOMAIN: ${MCP_DOMAIN:?Set MCP_DOMAIN in .env}
+    depends_on:
+      - metasploit-mcp
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  msf-data:
+  payloads:
+  caddy-data:
+  caddy-config:
