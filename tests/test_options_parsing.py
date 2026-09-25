@@ -8,8 +8,6 @@ from unittest.mock import patch
 
 from MetasploitMCP import _parse_options_gracefully
 
-itMCP import _parse_options_gracefully
-
 
 class TestParseOptionsGracefully:
     """Test cases for the _parse_options_gracefully function."""
