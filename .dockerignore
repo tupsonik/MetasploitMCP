@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+venv
+env
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+htmlcov
+.env
+payloads
+tests
+SECURITY.md
