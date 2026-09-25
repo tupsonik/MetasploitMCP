@@ -124,7 +124,7 @@ class TestParseOptionsGracefully:
         with pytest.raises(ValueError, match="expected key=value"):
             _parse_options_gracefully("LHOST192.168.1.100")
 
-        with pytest.raises(ValueError, match="missing '='"):
+        with pytest.raises(ValueError, match="expected key=value"):
             _parse_options_gracefully("LHOST=192.168.1.100,LPORT4444")
 
     def test_error_empty_key(self):
@@ -132,7 +132,7 @@ class TestParseOptionsGracefully:
         with pytest.raises(ValueError, match="key is empty"):
             _parse_options_gracefully("=value")
 
-        with pytest.raises(ValueError, match="empty key"):
+        with pytest.raises(ValueError, match="key is empty"):
             _parse_options_gracefully("LHOST=192.168.1.100,=4444")
 
     def test_error_does_not_echo_option_values(self):
