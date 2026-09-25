@@ -58,7 +58,7 @@ def parse_options_gracefully(
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Options must be a dictionary or comma-separated string format "
-            f"'key=value,key2=value2'. Got {type(options)}: {options}"
+            "'key=value,key2=value2'."
         ) from exc
 
 
@@ -122,5 +122,9 @@ async def set_module_options(
                     module_obj.__setitem__(option_key, option_value)
             )
         except (MsfRpcError, KeyError, TypeError) as exc:
-            logger.error(f"Failed to set option {key} on module: {exc}")
-            raise ValueError(f"Failed to set option '{key}': {exc}") from exc
+            logger.error(
+                f"Failed to set option {key} on module: {type(exc).__name__}"
+            )
+            raise ValueError(
+                f"Failed to set option '{key}': {type(exc).__name__}"
+            ) from exc
