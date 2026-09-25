@@ -146,11 +146,11 @@ def initialize_msf_client() -> MsfRpcClient:
         logger.debug("Testing connection with core.version call...")
         version_info = client.core.version
         msf_version = version_info.get('version', 'unknown') if isinstance(version_info, dict) else 'unknown'
-        logger.info(f"Successfully connected to Metasploit RPC at {MSF_SERVER}:{msf_port} (SSL: {msf_ssl}), version: {msf_version}")
+        logger.info(f"Successfully connected to Metasploit RPC at {rpc_config.server}:{rpc_config.port} (SSL: {rpc_config.ssl}), version: {msf_version}")
         _msf_client_instance = client
         return _msf_client_instance
     except MsfRpcError as e:
-        logger.error(f"Failed to connect or authenticate to Metasploit RPC ({MSF_SERVER}:{msf_port}, SSL: {msf_ssl}): {e}")
+        logger.error(f"Failed to connect or authenticate to Metasploit RPC ({rpc_config.server}:{rpc_config.port}, SSL: {rpc_config.ssl}): {e}")
         raise ConnectionError(f"Failed to connect/authenticate to Metasploit RPC: {e}") from e
     except Exception as e:
         logger.error(f"An unexpected error occurred during MSF client initialization: {e}", exc_info=True)
