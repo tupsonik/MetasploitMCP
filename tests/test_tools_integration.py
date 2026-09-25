@@ -102,6 +102,9 @@ sys.modules['pymetasploit3.msfrpc'].MsfRpcError = MockMsfRpcError
 
 # Import the module and then get the actual functions
 import MetasploitMCP
+import importlib
+# Reload after installing deterministic dependency mocks so @mcp.tool() preserves async functions.
+MetasploitMCP = importlib.reload(MetasploitMCP)
 
 # Get the actual functions (not mocked)
 list_exploits = MetasploitMCP.list_exploits
