@@ -182,6 +182,30 @@ See [SECURITY.md](SECURITY.md) for the security policy.
 3. Generate a payload: `generate_payload("windows/meterpreter/reverse_tcp", "exe", {"LHOST": "192.168.1.10", "LPORT": 4444})`
 4. Stop a handler: `stop_job(1)`
 
+## Docker
+
+Build the image:
+
+```bash
+docker build -t metasploit-mcp .
+```
+
+For a local deployment using Docker Compose:
+
+```bash
+cp .env.example .env
+# Set MSF_PASSWORD. Keep MCP_ALLOW_* disabled unless needed.
+docker compose up --build
+```
+
+The Compose example binds port 8085 to loopback and stores generated payloads in a named volume. If the Metasploit RPC service runs on the host, the example uses `host.docker.internal` as the default RPC host.
+
+Check liveness:
+
+```bash
+curl http://127.0.0.1:8085/healthz
+```
+
 ## Testing
 
 This project includes comprehensive unit and integration tests to ensure reliability and maintainability.
