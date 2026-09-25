@@ -36,3 +36,7 @@ desktop.ini
 .pytest_cache/
 .coverage
 htmlcov/ 
+# Codespace runtime secrets/state
+.codespace.env
+.codespace-mcp.pid
+payloads/
