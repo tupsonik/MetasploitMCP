@@ -243,7 +243,7 @@ class TestPayloadGeneration:
         module = MockMsfModule('payload/windows/meterpreter/reverse_tcp')
         
         with patch('MetasploitMCP.get_msf_client', return_value=client):
-            with patch('MetasploitMCP._get_module_object', return_value=module):
+            with patch('MetasploitMCP._get_module_object', new_callable=AsyncMock, return_value=module):
                 with patch('MetasploitMCP.PAYLOAD_SAVE_DIR', '/tmp/test'):
                     with patch('os.makedirs'):
                         with patch('builtins.open', create=True) as mock_open:
@@ -322,8 +322,8 @@ class TestExploitExecution:
         module = MockMsfModule('exploit/windows/smb/ms17_010_eternalblue')
         
         with patch('MetasploitMCP.get_msf_client', return_value=client):
-            with patch('MetasploitMCP._execute_module_rpc') as mock_rpc:
-                with patch('MetasploitMCP._execute_module_console') as mock_console:
+            with patch('MetasploitMCP._execute_module_rpc', new_callable=AsyncMock) as mock_rpc:
+                with patch('MetasploitMCP._execute_module_console', new_callable=AsyncMock) as mock_console:
                     mock_rpc.return_value = {
                         "status": "success",
                         "message": "Exploit executed",
@@ -415,10 +415,10 @@ class TestSessionManagement:
         """Fixture providing mocked session management environment."""
         client = MockMsfRpcClient()
         session = Mock()
-        session.run_with_output = Mock(return_value="command output")
+        session.run_with_output = AsyncMock(return_value="command output")
         session.read = Mock(return_value="session data")
         session.write = Mock()
-        session.stop = Mock()
+        session.stop = AsyncMock()
         
         # Override the default Mock with actual dict return values
         client.sessions.list = Mock(return_value={
@@ -493,7 +493,7 @@ class TestListenerManagement:
         client.jobs.stop = Mock(return_value="stopped")
         
         with patch('MetasploitMCP.get_msf_client', return_value=client):
-            with patch('MetasploitMCP._execute_module_rpc') as mock_rpc:
+            with patch('MetasploitMCP._execute_module_rpc', new_callable=AsyncMock) as mock_rpc:
                 mock_rpc.return_value = {
                     "status": "success",
                     "job_id": 1234,
